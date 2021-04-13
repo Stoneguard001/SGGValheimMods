@@ -28,19 +28,17 @@ namespace SGGValheimMod
             harmony.UnpatchSelf();
         }
 
-        [HarmonyPatch(typeof(FejdStartup), nameof(FejdStartup.OnJoinIPOpen))]
+        [HarmonyPatch]
         class IP_Patch
         {
+            [HarmonyPatch(typeof(FejdStartup), nameof(FejdStartup.OnJoinIPOpen))]
             static void Prefix(ref InputField ___m_joinIPAddress)
             {
                 ___m_joinIPAddress.text = _hostList.LastJoinHost(); // get last IP this character joined, if there is one;
                 Debug.Log("field set to " + ___m_joinIPAddress.text);
             }
-        }
 
-        [HarmonyPatch(typeof(FejdStartup), nameof(FejdStartup.OnJoinIPConnect))]
-        class IP_Save
-        {
+            [HarmonyPatch(typeof(FejdStartup), nameof(FejdStartup.OnJoinIPConnect))]
             static void Postfix(ref InputField ___m_joinIPAddress)
             {
                 _hostList.SetJoinIP(___m_joinIPAddress.text); //save the last entered IP address.
