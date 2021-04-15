@@ -10,6 +10,7 @@ using UnityEngine.UI;
 using System.Collections.Generic;
 using System.Xml.Serialization;
 using System.IO;
+using Steamworks;
 
 namespace SGGValheimMod
 {
@@ -26,6 +27,8 @@ namespace SGGValheimMod
         public string Password { get; set; }
         public ServerTypes ServerType { get; set; }
         public string ServerName { get; set; }
+        public ulong SteamHostID { get; set; }
+        public SteamNetworkingIPAddr SteamHostAddr { get; set; }
     }
 
     public class CharacterHostList
@@ -97,6 +100,25 @@ namespace SGGValheimMod
             if (charToIP != null)
                 ret = charToIP.IPHost;
             return ret;
+        }
+
+        public void AddFavorite(ServerData server)
+        {
+            //first check to see if it already exists. if so, update it
+            CharacterHost charToIP = Current.Find(x => x.ServerName == server.m_name);
+            if (charToIP == null)
+            {
+                charToIP = new CharacterHost();
+                AllHosts.Add(charToIP);
+            }
+
+            charToIP.Character = Character;
+            charToIP.ServerName = server.m_name;
+            charToIP.ServerType = ServerTypes.Community;
+            charToIP.SteamHostID = server.m_steamHostID;
+            charToIP.SteamHostAddr = server.m_steamHostAddr;
+
+            SaveChanges();
         }
 
         public void SetJoinIP(string currentIP)
