@@ -4,7 +4,7 @@ using HarmonyLib;
 //using System;
 using UnityEngine;
 using UnityEngine.UI;
-//using System.Linq;
+using System.Linq;
 //using System.Text;
 //using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -29,6 +29,7 @@ namespace SGGValheimMod
         public string ServerName { get; set; }
         public ulong SteamHostID { get; set; }
         public SteamNetworkingIPAddr SteamHostAddr { get; set; }
+        public bool RequirePassword { get; set; }
     }
 
     public class CharacterHostList
@@ -83,6 +84,8 @@ namespace SGGValheimMod
             get
             {
                 Debug.Log("Getting hosts for : " + Character);
+                var temp = AllHosts.Select(x => x.Character);
+                string ids = string.Join(", ", temp);
                 return AllHosts.FindAll(x => x.Character == Character);
             }
         }
@@ -117,8 +120,30 @@ namespace SGGValheimMod
             charToIP.ServerType = ServerTypes.Community;
             charToIP.SteamHostID = server.m_steamHostID;
             charToIP.SteamHostAddr = server.m_steamHostAddr;
+            charToIP.RequirePassword = server.m_password;
 
             SaveChanges();
+        }
+
+        public List<ServerData> Favorites()
+        {
+            List<ServerData> ret = new List<ServerData>();
+
+            Current.ForEach(item =>
+            {
+                if (item.ServerType != ServerTypes.JoinIP)
+                {
+                    ServerData newItem = new ServerData()
+                    {
+                        m_name = item.ServerName,
+                        m_steamHostID = item.SteamHostID,
+                        m_steamHostAddr = item.SteamHostAddr,
+                        m_password = item.RequirePassword
+                    };
+                    ret.Add(newItem);
+                }
+            });
+            return ret;
         }
 
         public void SetJoinIP(string currentIP)
