@@ -15,11 +15,15 @@ using Steamworks;
 namespace SGGValheimMod
 {
     public enum ServerTypes { JoinIP = 0, Friends = 1, Community = 2 }
+
+    //legacy class no longer used
     public class CharacterToIP
     {
         public string Character { get; set; }
         public string LastIP { get; set; }
     }
+
+    //character to server data to be stored in the config file
     public class CharacterHost
     {
         public string Character { get; set; }
@@ -32,6 +36,7 @@ namespace SGGValheimMod
         public bool RequirePassword { get; set; }
     }
 
+    //list of characters and servers. manipulated by character for Favorites and Join IPs.
     public class CharacterHostList
     {
         public const int MOD_CURRENT_VERSION = 2;
@@ -71,8 +76,7 @@ namespace SGGValheimMod
             {
                 if (_allHosts == null)
                 {
-                    //string character = PlayerPrefs.GetString("profile"); //get the selected player.
-                    Debug.Log("Getting list of all hosts ");
+                    //Debug.Log("Getting list of all hosts ");
                     _allHosts = DeserializeList(); //for simplicity, i am keeping the list in a serialized string in the configuration file.
                 }
                 return _allHosts;
@@ -183,7 +187,6 @@ namespace SGGValheimMod
 
         private List<CharacterHost> DeserializeList()
         {
-            //Debug.Log("Mod version : " + _modVersion.Value);
             List<CharacterHost> ret;
 
             string str = _CharacterToIPList.Value;
