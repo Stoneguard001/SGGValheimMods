@@ -28,7 +28,6 @@ namespace SGGValheimMod
             harmony.UnpatchSelf();
         }
 
-
         [HarmonyPatch]
         class FejdStartup_Patch
         {
