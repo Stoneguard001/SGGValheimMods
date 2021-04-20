@@ -34,8 +34,10 @@ namespace SGGValheimMod
             static GameObject m_serversTab = null;
             static GameObject m_favesTab = null;
             static Toggle m_SaveToFaves = null;
+            static Button m_RemoveFrFaves = null;
             static List<ServerData> m_serverList = null;
             static FejdStartup m_fejdStartup = null;
+            static ServerData m_joinServer = null;
 
             [HarmonyPatch(typeof(FejdStartup), "SetupGui")]
             static void Postfix(ref FejdStartup __instance)
@@ -60,43 +62,41 @@ namespace SGGValheimMod
             static void Postfix(GameObject ___m_startGamePanel, ref List<ServerData> ___m_serverList)
             {
                 m_serverList = ___m_serverList;
-                
+
                 if (m_favesTab == null)
                 {
+                    Debug.Log("Favorites mod - adding buttons");
                     Transform joinObject = findFirstObject(___m_startGamePanel, "Join");
-                    if (joinObject != null)
+                    var rect = joinObject.GetComponent<RectTransform>().rect;
+                    m_favesTab = newObject(joinObject, "Faves", "Favorites", joinObject.parent, joinObject.position, (int)rect.width+2, 2);
+                    //m_favesTab = newObject(joinObject, "Faves", "Favorites", joinObject.parent, joinObject.position, 180, 2);
+                    m_serversTab = joinObject.gameObject;
+
+                    Button btn = m_favesTab.GetComponent<Button>();
+                    if (btn != null)
                     {
-                        m_serversTab = joinObject.gameObject;
-                        m_favesTab = Instantiate(joinObject.gameObject);
-                        m_favesTab.name = "Faves";
-                        m_favesTab.transform.SetParent(joinObject.transform.parent);
-                        m_favesTab.GetComponent<RectTransform>().position = new Vector3(joinObject.transform.position.x + 180, joinObject.transform.position.y + 2);
-                        m_favesTab.GetComponentInChildren<Text>().text = "Favorites";
-
-                        Button btn = m_favesTab.GetComponent<Button>();
-                        if (btn != null)
-                        {
-                            Debug.Log("Faves button and listener added");
-
-                            btn.onClick.AddListener(OnFavesTab);
-                        }
+                        btn.onClick = new Button.ButtonClickedEvent();
+                        btn.onClick.AddListener(OnFavesTab);
                     }
 
                     Transform serverPanel = findFirstObject(m_fejdStartup.m_serverListPanel, "PublicGames");
-                    if (serverPanel != null)
-                    {
-                        var saveAsFave = Instantiate(serverPanel.gameObject);
-                        saveAsFave.name = "SaveToFaves";
-                        saveAsFave.transform.SetParent(serverPanel.transform.parent);
-                        saveAsFave.GetComponent<RectTransform>().position = new Vector3(serverPanel.transform.position.x + 190, serverPanel.transform.position.y);
-                        saveAsFave.GetComponentInChildren<Text>().text = "Save to Favorites";
+                    GameObject saveAsFave = newObject(serverPanel, "SaveToFaves", "Save to favorites", serverPanel.parent, serverPanel.position, 190);
 
-                        m_SaveToFaves = saveAsFave.GetComponent<Toggle>();
-                        if (m_SaveToFaves != null)
-                        {
-                            Debug.Log("Toggle " + m_SaveToFaves.name);
-                            m_SaveToFaves.group = null;
-                        }
+                    m_SaveToFaves = saveAsFave.GetComponent<Toggle>();
+                    if (m_SaveToFaves != null)
+                    {
+                        m_SaveToFaves.group = null;
+                    }
+
+                    Transform servbackObj = findFirstObject(m_fejdStartup.m_serverListPanel, "Back");
+                    saveAsFave = newObject(servbackObj, "RemoveFave", "Remove favorite", serverPanel.parent, m_SaveToFaves.transform.position);
+
+                    m_RemoveFrFaves = saveAsFave.GetComponent<Button>();
+                    if (m_RemoveFrFaves != null)
+                    {
+                        m_RemoveFrFaves.onClick = new Button.ButtonClickedEvent();
+                        m_RemoveFrFaves.onClick.AddListener(OnRemoveFave);
+                        m_RemoveFrFaves.gameObject.SetActive(false);
                     }
                 }
 
@@ -112,22 +112,19 @@ namespace SGGValheimMod
                 }
             }
 
-            [HarmonyPatch(typeof(FejdStartup), nameof(FejdStartup.OnWorldStart))]
-            static void Prefix(ref World ___m_world)
+            [HarmonyPatch(typeof(FejdStartup), nameof(FejdStartup.OnSelectWorldTab))]
+            static void Postfix()
             {
-                Debug.Log("Starting world " + ___m_world.m_name);
-
-                if (m_SaveToFaves != null)
+                if (m_RemoveFrFaves != null)
                 {
-                    Debug.Log("save fave is " + m_SaveToFaves.isOn.ToString());
+                    m_RemoveFrFaves.gameObject.SetActive(false);
+                    m_SaveToFaves.gameObject.SetActive(true);
                 }
             }
 
             [HarmonyPatch(typeof(FejdStartup), nameof(FejdStartup.OnJoinStart))]
             static void Prefix(ref ServerData ___m_joinServer)
             {
-                Debug.Log("Starting world " + ___m_joinServer.m_name);
-
                 if (m_SaveToFaves != null)
                 {
                     if (m_SaveToFaves.isOn)
@@ -137,13 +134,36 @@ namespace SGGValheimMod
                     }
                 }
             }
+
+            [HarmonyPatch(typeof(FejdStartup), "OnSelectedServer")]
+            static void Postfix(ServerData ___m_joinServer)
+            {
+                //Log("server select");
+                m_joinServer = ___m_joinServer;
+                _hostList.SetSelected(m_joinServer);
+            }
+
+            private static GameObject newObject(Transform original, string name, string text, Transform parent, Vector3 position, int xoffset = 0, int yoffset = 0)
+            {
+                if (original == null)
+                    return new GameObject();
+
+                GameObject ret = Instantiate(original.gameObject);
+                ret.name = "Faves";
+                ret.transform.SetParent(parent, false);
+                ret.GetComponent<RectTransform>().position = new Vector3(position.x + xoffset, position.y + yoffset);
+                ret.GetComponentInChildren<Text>().text = text;
+
+                return ret;
+            }
+
             private static Transform findFirstObject(GameObject baseObject, string itemName)
             {
                 Transform[] list = baseObject.GetComponentsInChildren<Transform>();
                 Transform ret = null;
                 foreach (Transform item in list)
                 {
-                    //Debug.Log("item named :: " + item.name + " >> " + item.parent);
+                    //Log("item named :: " + item.name + " >> " + item.parent);
                     if (item.name == itemName) //this loop is intentionally a little complex for looking at all the objects in the GameObject. Uncomment line above and comment out return line for that purpose.
                     {
                         ret = item;
@@ -156,7 +176,10 @@ namespace SGGValheimMod
 
             private static void OnFavesTab()
             {
-                Debug.Log("faves clicked");
+                Log("faves clicked");
+
+                m_RemoveFrFaves.gameObject.SetActive(true);
+                m_SaveToFaves.gameObject.SetActive(false);
 
                 m_fejdStartup.m_serverRefreshButton.interactable = false;
                 ZSteamMatchmaking.instance.StopServerListing();
@@ -167,6 +190,21 @@ namespace SGGValheimMod
                 var btn = m_serversTab.GetComponent<Button>();
                 btn.onClick.Invoke();
             }
+
+            private static void OnRemoveFave()
+            {
+                if (m_joinServer != null)
+                {
+                    Log("removing " + m_joinServer.m_name);
+                    _hostList.Remove(m_joinServer);
+                }
+                OnFavesTab();
+            }
+
+            private static void Log(string text)
+            {
+                Debug.Log("Faves mod: " + text);
+            }
         }
 
         [HarmonyPatch]
@@ -176,7 +214,7 @@ namespace SGGValheimMod
             static void Prefix(string pwd)
             {
                 Debug.Log("password entered " + pwd);
-                var charJIP = _hostList.LastJoinIP();
+                var charJIP = _hostList.CurrentSelected;
                 if (charJIP != null)
                 {
                     charJIP.Password = pwd;
@@ -189,7 +227,7 @@ namespace SGGValheimMod
             static void Postfix(ref InputField ___m_passwordDialog)
             {
                 Debug.Log("Pwd Field " + ___m_passwordDialog);
-                var charJIP = _hostList.LastJoinIP() ?? new CharacterHost();
+                var charJIP = _hostList.CurrentSelected ?? new CharacterHost();
                 if (charJIP.RequirePassword || !string.IsNullOrEmpty(charJIP.Password))
                 {
                     InputField componentInChildren = ___m_passwordDialog.GetComponentInChildren<InputField>();

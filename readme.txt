@@ -9,8 +9,7 @@ This mod gives you the ability to save servers to a favorites list and keep the 
 ## Known isssues
 
 - UI placement : The current placement of controls on the UI is not optimized for all screen resolutions.
-- Manual server list : To get the list of active servers, you will need to manually press the refresh button on the server list page.
-- Server status : The status of the servers in favorites are currently unknown. This will be resolved as the code that loads servers is optimized.
+- Server status: The status of the servers in favorites are currently unknown. This will be resolved as the code that loads servers is optimized.
 
 ## Planned enhancements
 

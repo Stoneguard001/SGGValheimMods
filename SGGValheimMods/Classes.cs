@@ -43,6 +43,7 @@ namespace SGGValheimMod
         private ConfigEntry<int> _modVersion;
         private ConfigEntry<string> _CharacterToIPList;
         private List<CharacterHost> _allHosts;
+        public CharacterHost CurrentSelected = null;
 
         public int ModVersion
         {
@@ -129,6 +130,28 @@ namespace SGGValheimMod
             SaveChanges();
         }
 
+        public void Remove(ServerData server)
+        {
+            CharacterHost charToIP = Current.Find(x => x.ServerName == server.m_name);
+            if (charToIP != null)
+            {
+                AllHosts.Remove(charToIP);
+                SaveChanges();
+            }
+        }
+
+        public bool SetSelected(ServerData server)
+        {
+            CharacterHost charToIP = Current.Find(x => x.ServerName == server.m_name);
+            if (charToIP != null)
+            {
+                CurrentSelected = charToIP;
+                return true;
+            }
+            CurrentSelected = null;
+            return false;
+        }
+
         public List<ServerData> Favorites()
         {
             List<ServerData> ret = new List<ServerData>();
@@ -164,6 +187,7 @@ namespace SGGValheimMod
                 charToIP = new CharacterHost() { Character = Character, IPHost = currentIP, ServerType = ServerTypes.JoinIP };
                 characterToIPList.Add(charToIP);
             }
+            CurrentSelected = charToIP;
             SaveChanges();
         }
 
@@ -173,6 +197,7 @@ namespace SGGValheimMod
             SerializeList(AllHosts); //put the list back int the configuration file
         }
 
+        #region private functions
         private void SerializeList(List<CharacterHost> charToIPList)
         {
             string str;
@@ -217,5 +242,6 @@ namespace SGGValheimMod
 
             return ret;
         }
+        #endregion
     }
 }
