@@ -70,9 +70,6 @@
     <Compile Include="ValheimMod.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="readme.md" />
-  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <PostBuildEvent>copy $(TargetPath) "C:\Program Files (x86)\Steam\steamapps\common\Valheim\BepInEx\plugins"</PostBuildEvent>
