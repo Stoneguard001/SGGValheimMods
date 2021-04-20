@@ -1,4 +1,0 @@
-﻿SAVE MY SERVER IP version 0.2.0
-
-::REQUIREMENTS::
-None
