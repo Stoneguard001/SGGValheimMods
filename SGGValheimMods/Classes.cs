@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.Xml.Serialization;
 using System.IO;
 using Steamworks;
+using System.Net;
 
 namespace SGGValheimMod
 {
@@ -88,22 +89,20 @@ namespace SGGValheimMod
         {
             get
             {
-                Debug.Log("Getting hosts for : " + Character);
-                var temp = AllHosts.Select(x => x.Character);
-                string ids = string.Join(", ", temp);
+                SGGValheimMod.Log("Getting hosts for : " + Character);
                 return AllHosts.FindAll(x => x.Character == Character);
             }
         }
 
         public CharacterHost LastJoinIP()
         {
-            return Current.Find(x => x.ServerType == ServerTypes.JoinIP);
+            return Current.FindLast(x => x.ServerType == ServerTypes.JoinIP);
         }
 
         public string LastJoinHost()
         {
             string ret = "";
-            Debug.Log("Getting last IP for current character");
+            SGGValheimMod.Log("Getting last IP for current character");
             CharacterHost charToIP = LastJoinIP();
             if (charToIP != null)
                 ret = charToIP.IPHost;
@@ -113,7 +112,7 @@ namespace SGGValheimMod
         public void AddFavorite(ServerData server)
         {
             //first check to see if it already exists. if so, update it
-            CharacterHost charToIP = Current.Find(x => x.ServerName == server.m_name);
+            CharacterHost charToIP = FindServer(server);// Current.Find(x => x.ServerName == server.m_name);
             if (charToIP == null)
             {
                 charToIP = new CharacterHost();
@@ -130,9 +129,20 @@ namespace SGGValheimMod
             SaveChanges();
         }
 
+        public CharacterHost FindServer(ServerData server)
+        {
+            CharacterHost charToIP = Current.Find(x => x.ServerName == server.m_name || x.IPHost == server.m_name);
+            return charToIP;
+        }
+        public CharacterHost FindServer(string server)
+        {
+            CharacterHost charToIP = Current.Find(x => x.IPHost == server);
+            return charToIP;
+        }
+
         public void Remove(ServerData server)
         {
-            CharacterHost charToIP = Current.Find(x => x.ServerName == server.m_name);
+            CharacterHost charToIP = FindServer(server);
             if (charToIP != null)
             {
                 AllHosts.Remove(charToIP);
@@ -142,7 +152,7 @@ namespace SGGValheimMod
 
         public bool SetSelected(ServerData server)
         {
-            CharacterHost charToIP = Current.Find(x => x.ServerName == server.m_name);
+            CharacterHost charToIP = FindServer(server);
             if (charToIP != null)
             {
                 CurrentSelected = charToIP;
@@ -156,39 +166,72 @@ namespace SGGValheimMod
         {
             List<ServerData> ret = new List<ServerData>();
 
-            Current.ForEach(item =>
+            var favList = Current.OrderBy(x => x.ServerType).ToList() ;
+            int iplist = 0;
+            favList.ForEach(item =>
             {
-                if (item.ServerType != ServerTypes.JoinIP)
+                ServerData newItem = new ServerData()
                 {
-                    ServerData newItem = new ServerData()
-                    {
-                        m_name = item.ServerName,
-                        m_steamHostID = item.SteamHostID,
-                        m_steamHostAddr = item.SteamHostAddr,
-                        m_password = item.RequirePassword
-                    };
-                    ret.Add(newItem);
+                    m_name = string.IsNullOrEmpty(item.ServerName) ? item.IPHost : item.ServerName,
+                    m_steamHostID = item.SteamHostID,
+                    m_steamHostAddr = item.SteamHostAddr,
+                    m_password = item.RequirePassword
+                };
+
+                if (item.ServerType == ServerTypes.JoinIP)
+                {
+                    newItem.m_steamHostAddr.SetIPv4((uint)iplist++, 0);
                 }
+
+                ret.Add(newItem);
             });
             return ret;
         }
 
-        public void SetJoinIP(string currentIP)
+        // replaced with AddJoinIP
+        //public void SetJoinIP(string currentIP)
+        //{
+        //    SGGValheimMod.Log("Setting Join IP for : " + Character + " to " + currentIP);
+        //    List<CharacterHost> characterToIPList = AllHosts;
+        //    CharacterHost charToIP = characterToIPList.Find(x => x.Character == Character && x.ServerType == ServerTypes.JoinIP); //if we find the character and server type, set their last IP.
+        //    if (charToIP != null)
+        //    {
+        //        charToIP.IPHost = currentIP;
+        //    }
+        //    else
+        //    {  // no character found, add them to the list of characters. 
+        //        charToIP = new CharacterHost() { Character = Character, IPHost = currentIP, ServerType = ServerTypes.JoinIP };
+        //        characterToIPList.Add(charToIP);
+        //    }
+
+        //    CurrentSelected = charToIP;
+        //    SaveChanges();
+        //}
+
+        public void AddJoinIP(string currentIP)
         {
-            Debug.Log("Setting Join IP for : " + Character + " to " + currentIP);
-            List<CharacterHost> characterToIPList = AllHosts;
-            CharacterHost charToIP = characterToIPList.Find(x => x.Character == Character && x.ServerType == ServerTypes.JoinIP); //if we find the character and server type, set their last IP.
-            if (charToIP != null)
+            SGGValheimMod.Log("Setting Join IP for : " + Character + " to " + currentIP);
+            CharacterHost charToIP = FindServer(currentIP);
+            if (charToIP != null) //already exists, no need to resave
             {
-                charToIP.IPHost = currentIP;
+                CurrentSelected = charToIP;
+                return;
             }
-            else
-            {  // no character found, add them to the list of characters. 
-                charToIP = new CharacterHost() { Character = Character, IPHost = currentIP, ServerType = ServerTypes.JoinIP };
-                characterToIPList.Add(charToIP);
-            }
+
+            charToIP = new CharacterHost() { Character = Character, IPHost = currentIP, ServerType = ServerTypes.JoinIP };
+            AllHosts.Add(charToIP);
             CurrentSelected = charToIP;
             SaveChanges();
+        }
+
+        public void UpdatePassword(string pwd)
+        {
+            if (CurrentSelected != null)
+            {
+                CurrentSelected.Password = pwd;
+                CurrentSelected.RequirePassword = true;
+                SaveChanges();
+            }
         }
 
         public void SaveChanges()

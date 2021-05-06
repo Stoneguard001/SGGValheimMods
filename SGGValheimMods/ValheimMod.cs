@@ -34,6 +34,7 @@ namespace SGGValheimMod
             static GameObject m_serversTab = null;
             static GameObject m_favesTab = null;
             static Toggle m_SaveToFaves = null;
+            static Toggle m_SaveIPToFaves = null;
             static Button m_RemoveFrFaves = null;
             static List<ServerData> m_serverList = null;
             static FejdStartup m_fejdStartup = null;
@@ -48,14 +49,21 @@ namespace SGGValheimMod
             [HarmonyPatch(typeof(FejdStartup), nameof(FejdStartup.OnJoinIPOpen))]
             static void Prefix(ref InputField ___m_joinIPAddress)
             {
-                ___m_joinIPAddress.text = _hostList.LastJoinHost(); // get last IP this character joined, if there is one;
-                Debug.Log("field set to " + ___m_joinIPAddress.text);
+                if (_hostList.CurrentSelected == null)
+                {
+                    ___m_joinIPAddress.text = _hostList.LastJoinHost(); // get last IP this character joined, if there is one;
+                }
+                Log("field set to " + ___m_joinIPAddress.text);
             }
 
             [HarmonyPatch(typeof(FejdStartup), nameof(FejdStartup.OnJoinIPConnect))]
             static void Postfix(ref InputField ___m_joinIPAddress)
             {
-                _hostList.SetJoinIP(___m_joinIPAddress.text); //save the last entered IP address.
+                if (m_SaveIPToFaves != null && m_SaveIPToFaves.isOn)
+                {
+                    Log("Adding IP: " + ___m_joinIPAddress.text);
+                    _hostList.AddJoinIP(___m_joinIPAddress.text); //save the last entered IP address.
+                }
             }
 
             [HarmonyPatch(typeof(FejdStartup), "ShowStartGame")]
@@ -65,11 +73,17 @@ namespace SGGValheimMod
 
                 if (m_favesTab == null)
                 {
-                    Debug.Log("Favorites mod - adding buttons");
+                    Log("Favorites mod - adding buttons");
                     Transform joinObject = findFirstObject(___m_startGamePanel, "Join");
-                    var rect = joinObject.GetComponent<RectTransform>().rect;
-                    m_favesTab = newObject(joinObject, "Faves", "Favorites", joinObject.parent, joinObject.position, (int)rect.width+2, 2);
-                    //m_favesTab = newObject(joinObject, "Faves", "Favorites", joinObject.parent, joinObject.position, 180, 2);
+                    float adjust = joinObject.transform.position.x;
+                    Transform hostObject = findFirstObject(___m_startGamePanel, "Host");
+
+                    if (hostObject != null)
+                    {
+                        adjust = joinObject.transform.localPosition.x - hostObject.transform.localPosition.x;
+                    }
+
+                    m_favesTab = newObject(joinObject, "Faves", "Favorites", joinObject.parent, joinObject.transform.localPosition, adjust, 2);
                     m_serversTab = joinObject.gameObject;
 
                     Button btn = m_favesTab.GetComponent<Button>();
@@ -80,7 +94,10 @@ namespace SGGValheimMod
                     }
 
                     Transform serverPanel = findFirstObject(m_fejdStartup.m_serverListPanel, "PublicGames");
-                    GameObject saveAsFave = newObject(serverPanel, "SaveToFaves", "Save to favorites", serverPanel.parent, serverPanel.position, 190);
+                    RectTransform rectT = serverPanel.GetComponent<RectTransform>();
+                    adjust =  rectT.rect.width;
+
+                    GameObject saveAsFave = newObject(serverPanel, "SaveToFaves", "Save to favorites", serverPanel.parent, rectT.localPosition, adjust+10);
 
                     m_SaveToFaves = saveAsFave.GetComponent<Toggle>();
                     if (m_SaveToFaves != null)
@@ -89,16 +106,26 @@ namespace SGGValheimMod
                     }
 
                     Transform servbackObj = findFirstObject(m_fejdStartup.m_serverListPanel, "Back");
-                    saveAsFave = newObject(servbackObj, "RemoveFave", "Remove favorite", serverPanel.parent, m_SaveToFaves.transform.position);
+                    GameObject removeFave = newObject(servbackObj, "RemoveFave", "Remove favorite", serverPanel.parent, m_SaveToFaves.transform.localPosition);
 
-                    m_RemoveFrFaves = saveAsFave.GetComponent<Button>();
+                    m_RemoveFrFaves = removeFave.GetComponent<Button>();
                     if (m_RemoveFrFaves != null)
                     {
                         m_RemoveFrFaves.onClick = new Button.ButtonClickedEvent();
                         m_RemoveFrFaves.onClick.AddListener(OnRemoveFave);
                         m_RemoveFrFaves.gameObject.SetActive(false);
                     }
+
+                    //scoping the saveAsFave variable by adding this here.
+                    if (m_fejdStartup.m_joinIPPanel != null)
+                    {
+                        Transform ipPanel = findFirstObject(m_fejdStartup.m_joinIPPanel, "panel");
+                        rectT = m_fejdStartup.m_joinIPAddress.GetComponent<RectTransform>();
+                        GameObject saveIPAsFave = newObject(saveAsFave.transform, "SaveIPToFaves", "Save to favorites", ipPanel, rectT.localPosition, 0, -100);
+                        m_SaveIPToFaves = saveIPAsFave.GetComponent<Toggle>();
+                    }
                 }
+
 
                 if (_hostList.Favorites().Count > 0) //force the load of favorites, then go back to the Start Game tab
                 {
@@ -120,19 +147,31 @@ namespace SGGValheimMod
                     m_RemoveFrFaves.gameObject.SetActive(false);
                     m_SaveToFaves.gameObject.SetActive(true);
                 }
+                _hostList.CurrentSelected = null;
             }
 
             [HarmonyPatch(typeof(FejdStartup), nameof(FejdStartup.OnJoinStart))]
-            static void Prefix(ref ServerData ___m_joinServer)
+            static bool Prefix(ref ServerData ___m_joinServer)
             {
                 if (m_SaveToFaves != null)
                 {
                     if (m_SaveToFaves.isOn)
                     {
                         _hostList.AddFavorite(___m_joinServer);
-                       Debug.Log("saved to faves");
+                       Log("saved to faves");
                     }
                 }
+                Log("Server: " + ___m_joinServer.m_name);
+
+                CharacterHost charToIP = _hostList.FindServer(___m_joinServer);
+                if (charToIP != null && charToIP.ServerType == ServerTypes.JoinIP)
+                {
+                    //joinIP(charToIP.IPHost);
+                    m_fejdStartup.m_joinIPAddress.text = charToIP.IPHost;
+                    m_fejdStartup.OnJoinIPConnect();
+                    return false;
+                }
+                return true;
             }
 
             [HarmonyPatch(typeof(FejdStartup), "OnSelectedServer")]
@@ -143,15 +182,19 @@ namespace SGGValheimMod
                 _hostList.SetSelected(m_joinServer);
             }
 
-            private static GameObject newObject(Transform original, string name, string text, Transform parent, Vector3 position, int xoffset = 0, int yoffset = 0)
+            #region internal functions
+
+            private static GameObject newObject(Transform original, string name, string text, Transform parent, Vector3 position, float xoffset = 0, int yoffset = 0)
             {
                 if (original == null)
                     return new GameObject();
 
                 GameObject ret = Instantiate(original.gameObject);
-                ret.name = "Faves";
+                ret.transform.localScale = new Vector3(1, 1, 1);
+                ret.name = name;
                 ret.transform.SetParent(parent, false);
-                ret.GetComponent<RectTransform>().position = new Vector3(position.x + xoffset, position.y + yoffset);
+                Log("New object position: " + position.x);
+                ret.GetComponent<RectTransform>().localPosition = new Vector3(position.x + xoffset, position.y + yoffset, position.z);
                 ret.GetComponentInChildren<Text>().text = text;
 
                 return ret;
@@ -201,10 +244,7 @@ namespace SGGValheimMod
                 OnFavesTab();
             }
 
-            private static void Log(string text)
-            {
-                Debug.Log("Faves mod: " + text);
-            }
+            #endregion
         }
 
         [HarmonyPatch]
@@ -213,20 +253,14 @@ namespace SGGValheimMod
             [HarmonyPatch(typeof(ZNet), "OnPasswordEnter")]
             static void Prefix(string pwd)
             {
-                Debug.Log("password entered " + pwd);
-                var charJIP = _hostList.CurrentSelected;
-                if (charJIP != null)
-                {
-                    charJIP.Password = pwd;
-                    charJIP.RequirePassword = true;
-                    _hostList.SaveChanges();
-                }
+                Log("password entered " + pwd);
+                _hostList.UpdatePassword(pwd);
             }
 
             [HarmonyPatch(typeof(ZNet), "RPC_ClientHandshake")]
             static void Postfix(ref InputField ___m_passwordDialog)
             {
-                Debug.Log("Pwd Field " + ___m_passwordDialog);
+                Log("Pwd Field " + ___m_passwordDialog);
                 var charJIP = _hostList.CurrentSelected ?? new CharacterHost();
                 if (charJIP.RequirePassword || !string.IsNullOrEmpty(charJIP.Password))
                 {
@@ -237,5 +271,9 @@ namespace SGGValheimMod
 
         }
 
+        public static void Log(string text)
+        {
+            Debug.Log("Faves mod: " + text);
+        }
     }
 }
